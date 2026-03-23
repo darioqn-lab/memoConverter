@@ -1,0 +1,11 @@
+{
+  "version": "1.7.0",
+  "changelog": "Correção no parsing de coordenadas DMS.",
+  "files": [
+    "app/app.py",
+    "app/memorial_parser.py",
+    "app/quota.py",
+    "app/licenca.py",
+    "app/templates/index.html"
+  ]
+}
