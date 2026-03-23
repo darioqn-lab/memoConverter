@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MemoConverter</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --azul:#1a5276;--azul2:#2e86c1;--verde:#1e8449;--laranja:#d35400;
+  --cinza:#f4f6f7;--borda:#d5d8dc;--texto:#1c2833;
+  --mono:'Courier New',monospace;
+}
+body{font-family:Georgia,serif;background:var(--cinza);color:var(--texto);min-height:100vh}
+header{background:var(--azul);color:#fff;padding:14px 28px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+header h1{font-size:1.15rem;letter-spacing:.03em}
+header span{font-size:.8rem;opacity:.55;font-style:italic;margin-left:4px}
+.hdr-btns{margin-left:auto;display:flex;gap:8px}
+.btn-hdr{background:none;border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.65);font-size:.75rem;padding:5px 13px;border-radius:4px;cursor:pointer;transition:.15s}
+.btn-hdr:hover{background:rgba(255,255,255,.12);color:#fff}
+main{max-width:1040px;margin:0 auto;padding:24px 18px 60px}
+.card{background:#fff;border:1px solid var(--borda);border-radius:6px;padding:20px 22px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.card h2{font-size:.75rem;text-transform:uppercase;letter-spacing:.12em;color:var(--azul2);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--cinza);display:flex;align-items:center;gap:8px}
+/* abas */
+.abas{display:flex;gap:0;margin-bottom:14px}
+.aba{padding:7px 18px;border:1px solid var(--borda);background:var(--cinza);font-family:Georgia,serif;font-size:.88rem;cursor:pointer;transition:.15s}
+.aba:first-child{border-radius:4px 0 0 4px}
+.aba:last-child{border-radius:0 4px 4px 0;border-left:none}
+.aba.ativa{background:var(--azul);color:#fff;border-color:var(--azul);font-weight:bold}
+.painel{display:none}.painel.ativo{display:block}
+/* drop */
+.drop{border:2px dashed var(--borda);border-radius:6px;padding:28px;text-align:center;cursor:pointer;background:var(--cinza);transition:.2s}
+.drop:hover,.drop.sobre{border-color:var(--azul2);background:#eaf4fb}
+.drop-ico{font-size:2rem;margin-bottom:6px}
+.drop-hint{font-size:.8rem;color:#777;margin-top:4px}
+input[type=file]{display:none}
+.arquivo-ok{display:none;margin-top:8px;padding:7px 12px;background:#e8f8f5;border:1px solid #a9dfbf;border-radius:4px;font-size:.83rem;color:#1e8449}
+.arquivo-ok.vis{display:block}
+textarea{width:100%;height:160px;padding:10px;border:1px solid var(--borda);border-radius:4px;font-family:var(--mono);font-size:.8rem;background:var(--cinza);resize:vertical;line-height:1.55}
+textarea:focus{outline:2px solid var(--azul2)}
+/* botoes */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 22px;border:none;border-radius:4px;font-family:Georgia,serif;font-size:.9rem;font-weight:bold;cursor:pointer;transition:.15s}
+.btn-azul{background:var(--azul);color:#fff}.btn-azul:hover{background:#154360}
+.btn-verde{background:var(--verde);color:#fff}.btn-verde:hover{background:#145a32}
+.btn-laranja{background:var(--laranja);color:#fff}.btn-laranja:hover{background:#a04000}
+.btn-cinza{background:var(--cinza);color:var(--azul);border:1px solid var(--borda)}.btn-cinza:hover{background:#e0e0e0}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+/* progresso */
+.prog{display:none;margin:10px 0}.prog.vis{display:block}
+.prog-trilha{height:5px;background:var(--cinza);border-radius:3px;overflow:hidden}
+.prog-barra{height:100%;background:var(--azul2);border-radius:3px;width:35%;animation:slide 1.1s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(380%)}}
+.prog-texto{font-size:.75rem;color:#888;margin-top:3px;font-family:var(--mono)}
+/* alertas */
+.alerta{display:none;padding:10px 14px;border-radius:4px;font-size:.84rem;margin-top:8px;line-height:1.5}
+.alerta.vis{display:block}
+.alerta-erro  {background:#fdedec;border:1px solid #f5b7b1;color:#922b21}
+.alerta-ok    {background:#eafaf1;border:1px solid #a9dfbf;color:#1e8449}
+.alerta-aviso {background:#fef9e7;border:1px solid #f9e79f;color:#7d6608}
+.alerta-info  {background:#eaf4fb;border:1px solid #aed6f1;color:#1a5276}
+/* meta */
+.meta{display:none;flex-wrap:wrap;gap:7px;margin-top:10px}.meta.vis{display:flex}
+.meta-item{background:var(--cinza);border:1px solid var(--borda);border-radius:20px;padding:3px 13px;font-family:var(--mono);font-size:.76rem}
+.meta-item b{color:var(--azul)}
+.badge-geo{background:#fef9e7;border-color:#f9e79f;color:#7d6608}
+/* tabela */
+.tbl-wrap{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+thead tr{background:var(--azul);color:#fff}
+thead th{padding:9px 12px;text-align:left;font-family:var(--mono);font-size:.74rem;letter-spacing:.07em;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--cinza);transition:background .1s}
+tbody tr:nth-child(even){background:#fafafa}
+tbody tr:hover{background:#eaf4fb}
+tbody td{padding:0}
+tbody td input{width:100%;padding:7px 11px;border:none;background:transparent;font-family:var(--mono);font-size:.82rem;color:var(--texto)}
+tbody td input:focus{outline:2px solid var(--azul2);background:#fff}
+td.col-del{width:32px;text-align:center}
+td.col-tipo{width:60px;text-align:center;font-size:.7rem;font-family:var(--mono)}
+.tag-utm{color:var(--azul2);font-weight:bold}
+.tag-geo{color:var(--laranja);font-weight:bold}
+.del{background:none;border:none;cursor:pointer;color:#ccc;font-size:1rem;padding:2px 6px;border-radius:3px;transition:.1s}
+.del:hover{color:#c0392b;background:#fde8e8}
+.count{display:inline-block;background:var(--verde);color:#fff;font-family:var(--mono);font-size:.72rem;padding:2px 10px;border-radius:20px;margin-left:6px}
+/* mapa */
+#mapa{height:440px;border-radius:6px;border:1px solid var(--borda);margin-top:8px}
+.fuso-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.fuso-row label{font-size:.84rem;color:#555}
+.fuso-row select{padding:5px 10px;border:1px solid var(--borda);border-radius:4px;font-family:var(--mono);font-size:.84rem;background:var(--cinza)}
+.mapa-info{font-size:.76rem;color:#888;margin-top:6px;font-family:var(--mono)}
+/* config modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
+.modal-bg.vis{display:flex}
+.modal{background:#fff;border-radius:8px;padding:28px;width:520px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.25)}
+.modal h3{font-size:1rem;margin-bottom:18px;color:var(--azul)}
+.campo-config{margin-bottom:14px}
+.campo-config label{display:block;font-size:.82rem;color:#555;margin-bottom:5px;font-family:var(--mono)}
+.campo-config input{width:100%;padding:8px 12px;border:1px solid var(--borda);border-radius:4px;font-family:var(--mono);font-size:.83rem;background:var(--cinza)}
+.campo-config input:focus{outline:2px solid var(--azul2)}
+.campo-config .dica{font-size:.75rem;color:#888;margin-top:4px}
+.campo-config a{color:var(--azul2)}
+.status-chave{display:inline-block;font-size:.74rem;font-family:var(--mono);padding:2px 8px;border-radius:10px;margin-left:8px}
+.chave-ok  {background:#e8f8f5;color:#1e8449;border:1px solid #a9dfbf}
+.chave-nao {background:#fdedec;color:#922b21;border:1px solid #f5b7b1}
+/* cota */
+.cota-box{background:var(--cinza);border:1px solid var(--borda);border-radius:6px;padding:12px 14px;margin-bottom:14px}
+.cota-titulo{font-size:.78rem;font-family:var(--mono);color:var(--azul);font-weight:bold;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.cota-barra-bg{height:10px;background:#e0e0e0;border-radius:5px;overflow:hidden;margin-bottom:6px}
+.cota-barra-fill{height:100%;border-radius:5px;transition:width .4s}
+.cota-fill-ok   {background:#1e8449}
+.cota-fill-aviso{background:#d39e00}
+.cota-fill-cheio{background:#c0392b}
+.cota-detalhe{font-size:.74rem;font-family:var(--mono);color:#666;display:flex;justify-content:space-between}
+.cota-limite-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.cota-limite-row label{font-size:.78rem;color:#666;font-family:var(--mono)}
+.cota-limite-row input[type=number]{width:90px;padding:4px 8px;border:1px solid var(--borda);border-radius:4px;font-family:var(--mono);font-size:.82rem;background:#fff}
+/* instrucao */
+.instrucao{font-size:.83rem;color:#555;line-height:1.7;margin-bottom:14px}
+.instrucao code{background:var(--cinza);padding:1px 6px;border-radius:3px;font-family:var(--mono)}
+footer{text-align:center;padding:16px;font-family:var(--mono);font-size:.7rem;color:#aaa;border-top:1px solid var(--borda)}
+/* licenca */
+.lic-overlay{display:none;position:fixed;inset:0;background:rgba(26,26,46,.97);z-index:2000;align-items:center;justify-content:center}
+.lic-overlay.vis{display:flex}
+.lic-box{background:#fff;border-radius:10px;padding:36px 40px;width:460px;max-width:95vw;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,.4)}
+.lic-box h2{font-size:1.1rem;color:var(--azul);margin-bottom:8px}
+.lic-box p{font-size:.88rem;color:#555;margin-bottom:20px;line-height:1.6}
+.lic-input{width:100%;padding:10px 14px;border:2px solid var(--borda);border-radius:6px;font-family:var(--mono);font-size:.85rem;margin-bottom:10px;text-align:center}
+.lic-input:focus{outline:none;border-color:var(--azul2)}
+.lic-erro{font-size:.82rem;color:#c0392b;margin-bottom:12px;min-height:18px}
+</style>
+</head>
+<body>
+
+<!-- Modal de configuração -->
+<div class="modal-bg" id="modal-config">
+  <div class="modal">
+    <h3>⚙ Configurar APIs</h3>
+
+    <!-- Medidor de cota OCR -->
+    <div class="cota-box" id="cota-box">
+      <div class="cota-titulo">
+        <span>📊 Uso OCR Google Vision — mês atual</span>
+        <span id="cota-mes" style="font-weight:normal;color:#888"></span>
+      </div>
+      <div class="cota-barra-bg">
+        <div class="cota-barra-fill cota-fill-ok" id="cota-barra" style="width:0%"></div>
+      </div>
+      <div class="cota-detalhe">
+        <span id="cota-texto">— páginas usadas</span>
+        <span id="cota-pct">0%</span>
+      </div>
+      <div class="cota-limite-row">
+        <label>Limite mensal:</label>
+        <input type="number" id="inp-limite" min="1" max="10000" value="1000">
+        <span style="font-size:.74rem;color:#888;font-family:var(--mono)">páginas (cota gratuita = 1.000)</span>
+      </div>
+    </div>
+
+    <div class="campo-config">
+      <label>
+        Google Vision — OCR para PDF escaneado
+        <span class="status-chave" id="st-vision">não configurado</span>
+      </label>
+      <input type="password" id="inp-vision" placeholder="AIzaSy...">
+      <div class="dica">
+        Obter em: console.cloud.google.com → APIs → Cloud Vision API → Credenciais<br>
+        Cota gratuita: 1.000 páginas/mês. Configure também um orçamento máximo no Google Cloud para garantir zero cobrança.
+      </div>
+    </div>
+
+    <div class="campo-config">
+      <label>
+        Google Gemini — extração inteligente
+        <span class="status-chave" id="st-gemini">não configurado</span>
+      </label>
+      <input type="password" id="inp-gemini" placeholder="AIzaSy...">
+      <div class="dica">
+        Obter <strong>gratuitamente</strong> em: aistudio.google.com/app/apikey
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:18px">
+      <button class="btn btn-azul" onclick="salvarConfig()">💾 Salvar</button>
+      <button class="btn btn-cinza" onclick="fecharConfig()">Fechar</button>
+    </div>
+    <div class="alerta alerta-ok"  id="al-config-ok"  style="margin-top:10px"></div>
+    <div class="alerta alerta-erro" id="al-config-err" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- Licenca -->
+<div class="lic-overlay" id="lic-overlay">
+  <div class="lic-box">
+    <h2>📐 MemoConverter</h2>
+    <p id="lic-msg">Insira a chave de licença<br>fornecida pelo administrador.</p>
+    <input class="lic-input" type="text" id="lic-inp"
+      placeholder="Cole a chave aqui"
+      onkeydown="if(event.key==='Enter') ativarLicenca()">
+    <div class="lic-erro" id="lic-erro"></div>
+    <button class="btn btn-azul" onclick="ativarLicenca()" style="width:100%;justify-content:center">
+      ✔ Ativar
+    </button>
+  </div>
+</div>
+
+<header>
+  <h1>📐 MemoConverter</h1>
+  <span>Extração de vértices de memoriais descritivos</span>
+  <div class="hdr-btns">
+    <span id="lic-badge" style="font-size:.72rem;font-family:var(--mono);opacity:.7;padding:0 6px"></span>
+    <button class="btn-hdr" onclick="abrirConfig()">⚙ Configurar APIs</button>
+    <button class="btn-hdr" onclick="encerrar()">✕ Encerrar</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ① Entrada -->
+  <div class="card">
+    <h2>① Origem do memorial</h2>
+    <div class="abas">
+      <button class="aba ativa" onclick="trocarAba('arquivo')">📂 Arquivo</button>
+      <button class="aba"       onclick="trocarAba('texto')">📋 Colar texto</button>
+    </div>
+    <div class="painel ativo" id="painel-arquivo">
+      <div class="drop" id="drop" onclick="document.getElementById('fi').click()">
+        <div class="drop-ico">📄</div>
+        <div><strong>Clique para selecionar</strong> ou arraste aqui</div>
+        <div class="drop-hint">PDF · Word .docx · Imagem JPG / PNG (requer Google Vision)</div>
+        <input type="file" id="fi" accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.tif,.tiff" onchange="aoEscolherArquivo(this)">
+      </div>
+      <div class="arquivo-ok" id="arquivo-ok"></div>
+    </div>
+    <div class="painel" id="painel-texto">
+      <textarea id="texto-colado"
+        placeholder="Cole aqui o texto do memorial...
+
+Aceita UTM:
+  Norte (Y) 8.444.440,55 m  Este (X) 504.770,93 m
+  N 8.550.332,48m e E 525.392,08m
+
+Aceita coordenadas geográficas (DMS):
+  Longitude: 38°57'20.596&quot;W  Latitude: 14°04'13.869&quot;S"></textarea>
+    </div>
+  </div>
+
+  <!-- ② Extrair -->
+  <div class="card">
+    <h2>② Extração</h2>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn btn-azul" onclick="processar()" id="btn-processar">
+        🔍 Extrair vértices
+      </button>
+    </div>
+    <div class="prog vis" id="prog">
+      <div class="prog-trilha"><div class="prog-barra"></div></div>
+      <div class="prog-texto" id="prog-texto">Processando…</div>
+    </div>
+    <div class="alerta alerta-erro"  id="al-erro"></div>
+    <div class="alerta alerta-aviso" id="al-aviso"></div>
+    <div class="alerta alerta-ok"    id="al-ok"></div>
+    <!-- Texto bruto do OCR -->
+    <div id="ocr-debug" style="display:none;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:.78rem;font-family:var(--mono);color:#888">Texto extraído pelo OCR:</span>
+        <button class="btn btn-cinza" onclick="copiarTextoOCR()" style="font-size:.75rem;padding:4px 12px">📋 Copiar</button>
+        <button class="btn btn-cinza" onclick="document.getElementById('ocr-debug').style.display='none'" style="font-size:.75rem;padding:4px 12px">✕</button>
+      </div>
+      <textarea id="ocr-texto" readonly style="width:100%;height:180px;font-family:var(--mono);font-size:.75rem;background:#f8f8f8;border:1px solid var(--borda);border-radius:4px;padding:8px;resize:vertical"></textarea>
+    </div>
+
+    <div class="alerta alerta-info"  id="al-gemini-aviso" style="display:none">
+      Nenhum vértice encontrado automaticamente.
+      <br><button class="btn btn-laranja" onclick="usarGemini()" style="margin-top:8px;font-size:.82rem;padding:7px 16px">
+        🤖 Tentar com Gemini (IA)
+      </button>
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <!-- ③ Tabela -->
+  <div class="card">
+    <h2>
+      ③ Vértices extraídos
+      <span class="count" id="count">0</span>
+      <span style="font-size:.7rem;color:#aaa;font-style:italic;margin-left:6px">clique para editar</span>
+    </h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Vértice</th>
+            <th>E — Coord X</th>
+            <th>N — Coord Y</th>
+            <th>Tipo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-cinza" onclick="addLinha()" style="font-size:.82rem;padding:7px 14px">+ Linha</button>
+    </div>
+  </div>
+
+  <!-- ④ Mapa -->
+  <div class="card">
+    <h2>④ Mapa</h2>
+    <div class="fuso-row">
+      <label>Fuso UTM:</label>
+      <select id="sel-fuso" onchange="atualizarMapa()">
+        <option value="18">18</option><option value="19">19</option>
+        <option value="20">20</option><option value="21">21</option>
+        <option value="22">22</option><option value="23">23</option>
+        <option value="24" selected>24</option><option value="25">25</option>
+        <option value="26">26</option>
+      </select>
+      <label>Hemisfério:</label>
+      <select id="sel-hem" onchange="atualizarMapa()">
+        <option value="S" selected>Sul</option>
+        <option value="N">Norte</option>
+      </select>
+      <span style="font-size:.78rem;color:#888;font-family:var(--mono)">
+        (coordenadas geográficas são plotadas diretamente, ignorando fuso)
+      </span>
+    </div>
+    <div id="mapa"></div>
+    <div class="mapa-info" id="mapa-info">Extraia os vértices para visualizar no mapa.</div>
+  </div>
+
+  <!-- ⑤ Exportar -->
+  <div class="card">
+    <h2>⑤ Exportar CSV</h2>
+    <p class="instrucao">
+      Colunas: <code>Ponto;X;Y</code> — separador <code>;</code> · decimal <code>.</code><br>
+      No QGIS: <em>Camada → Adicionar Camada → Texto Delimitado</em>
+      · Campo X = <code>X</code> · Campo Y = <code>Y</code>.
+    </p>
+    <button class="btn btn-verde" onclick="exportar()" id="btn-exportar" disabled>
+      💾 Baixar CSV
+    </button>
+    <div class="alerta alerta-ok" id="al-exportar"></div>
+  </div>
+
+</main>
+<footer>MemoConverter v<span id="app-versao">1.7.0</span> · Desenvolvido por Dario Galvão · execução local</footer>
+
+<script>
+/* ── estado ─────────────────────────────────────────── */
+let abaAtiva     = "arquivo";
+let arquivoAtual = null;
+let linhas       = [];
+let textoAtual   = "";
+let mapa         = null;
+let camadasMapa  = [];
+
+/* ── init ───────────────────────────────────────────── */
+/* ── licenca ────────────────────────────────────────── */
+async function verificarLicenca() {
+  try {
+    const res  = await fetch("/api/licenca");
+    const data = await res.json();
+    const overlay = document.getElementById("lic-overlay");
+    const badge   = document.getElementById("lic-badge");
+    if (!data.valida) {
+      overlay.classList.add("vis");
+      if (data.chave_presente) {
+        document.getElementById("lic-msg").innerHTML =
+          "<strong>Licença expirada.</strong><br>Solicite uma nova chave ao administrador.";
+      }
+    } else {
+      overlay.classList.remove("vis");
+      if (data.dias_restantes <= 30) {
+        badge.textContent = "⏳ Expira em " + data.dias_restantes + " dias";
+        badge.style.color = "#f9e79f";
+      }
+    }
+  } catch(_) {}
+}
+
+async function ativarLicenca() {
+  const chave = document.getElementById("lic-inp").value.trim();
+  const erro  = document.getElementById("lic-erro");
+  erro.textContent = "";
+  if (!chave) { erro.textContent = "Cole a chave antes de continuar."; return; }
+  const res  = await fetch("/api/licenca", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({chave})
+  });
+  const data = await res.json();
+  if (data.valida) {
+    await verificarLicenca();
+  } else {
+    erro.textContent = data.mensagem || "Chave inválida.";
+  }
+}
+
+window.addEventListener("load", () => {
+  mapa = L.map("mapa").setView([-12, -41], 5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { attribution:"© OpenStreetMap", maxZoom:20 }).addTo(mapa);
+  verificarLicenca();
+  carregarStatusConfig();
+  progresso(false);
+});
+
+/* ── config ─────────────────────────────────────────── */
+async function carregarStatusConfig() {
+  try {
+    const res  = await fetch("/api/config");
+    const data = await res.json();
+    atualizarBadge("st-vision", data.google_vision);
+    atualizarBadge("st-gemini", data.gemini);
+    if (data.cota)   renderizarCota(data.cota);
+    if (data.versao) {
+      const el = document.getElementById("app-versao");
+      if (el) el.textContent = data.versao;
+    }
+  } catch(_) {}
+}
+
+function atualizarBadge(id, ok) {
+  const el = document.getElementById(id);
+  el.textContent = ok ? "✔ configurado" : "não configurado";
+  el.className   = "status-chave " + (ok ? "chave-ok" : "chave-nao");
+}
+
+function renderizarCota(c) {
+  document.getElementById("cota-mes").textContent = c.mes || "";
+  document.getElementById("cota-pct").textContent = c.pct + "%";
+  document.getElementById("cota-texto").textContent =
+    c.usadas + " de " + c.limite + " páginas usadas · " + c.disponivel + " disponíveis";
+
+  const barra = document.getElementById("cota-barra");
+  barra.style.width = Math.min(c.pct, 100) + "%";
+  barra.className = "cota-barra-fill " + (
+    c.pct >= 100 ? "cota-fill-cheio" :
+    c.pct >= 80  ? "cota-fill-aviso" :
+                   "cota-fill-ok"
+  );
+
+  // preenche campo de limite
+  const inp = document.getElementById("inp-limite");
+  if (inp && c.limite) inp.value = c.limite;
+
+  // aviso se bloqueado
+  const box = document.getElementById("cota-box");
+  if (c.bloqueado) {
+    box.style.borderColor = "#c0392b";
+    box.style.background  = "#fdedec";
+  } else {
+    box.style.borderColor = "";
+    box.style.background  = "";
+  }
+}
+
+function abrirConfig() {
+  document.getElementById("modal-config").classList.add("vis");
+  document.getElementById("al-config-ok").classList.remove("vis");
+  document.getElementById("al-config-err").classList.remove("vis");
+  carregarStatusConfig();
+}
+
+function fecharConfig() {
+  document.getElementById("modal-config").classList.remove("vis");
+}
+
+async function salvarConfig() {
+  const vision = document.getElementById("inp-vision").value.trim();
+  const gemini = document.getElementById("inp-gemini").value.trim();
+  const limite = document.getElementById("inp-limite").value.trim();
+  const payload = {};
+  if (vision) payload.google_vision = vision;
+  if (gemini) payload.gemini        = gemini;
+  if (limite) payload.limite_paginas_mes = parseInt(limite);
+
+  if (!vision && !gemini && !limite) {
+    document.getElementById("al-config-err").textContent = "Nenhuma alteração para salvar.";
+    document.getElementById("al-config-err").classList.add("vis");
+    return;
+  }
+
+  const res = await fetch("/api/config", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (res.ok) {
+    document.getElementById("al-config-ok").textContent = "✔ Configurações salvas.";
+    document.getElementById("al-config-ok").classList.add("vis");
+    document.getElementById("al-config-err").classList.remove("vis");
+    document.getElementById("inp-vision").value = "";
+    document.getElementById("inp-gemini").value = "";
+    await carregarStatusConfig();
+  } else {
+    document.getElementById("al-config-err").textContent = "Erro ao salvar.";
+    document.getElementById("al-config-err").classList.add("vis");
+  }
+}
+
+// fecha modal clicando fora
+document.getElementById("modal-config").addEventListener("click", e => {
+  if (e.target === e.currentTarget) fecharConfig();
+});
+
+/* ── mapa ───────────────────────────────────────────── */
+function utmParaLatLon(e, n, fuso, hem) {
+  const proj  = "+proj=utm +zone=" + fuso + (hem==="S"?" +south":"") + " +datum=WGS84 +units=m +no_defs";
+  const wgs84 = "+proj=longlat +datum=WGS84 +no_defs";
+  const [lon, lat] = proj4(proj, wgs84, [e, n]);
+  return [lat, lon];
+}
+
+function _rotulo(l, i) {
+  // Numeracao automatica se rotulo ausente, vazio ou generico (1,2,3...)
+  const v = String(l.vertice || "").trim();
+  if (!v || v === String(i+1)) return String(i+1);
+  return v;
+}
+
+function atualizarMapa() {
+  if (!mapa) return;
+  camadasMapa.forEach(c => mapa.removeLayer(c));
+  camadasMapa = [];
+  sincronizarLinhas();
+  normalizarRotulos();  // numeracao automatica
+
+  const fuso = document.getElementById("sel-fuso").value;
+  const hem  = document.getElementById("sel-hem").value;
+  const pontos    = [];
+  const idxMapa   = [];  // mapeia posicao no pontos[] para indice em linhas[]
+
+  linhas.forEach((l, i) => {
+    const e = parseFloat(String(l.coord_e).replace(",","."));
+    const n = parseFloat(String(l.coord_n).replace(",","."));
+    if (isNaN(e) || isNaN(n) || e === 0 || n === 0) return;
+
+    let ll;
+    if (l.tipo === "geografica" && l.lat !== undefined && l.lon !== undefined) {
+      ll = [parseFloat(l.lat), parseFloat(l.lon)];
+    } else {
+      try { ll = utmParaLatLon(e, n, fuso, hem); } catch(_) { return; }
+    }
+
+    pontos.push(ll);
+    idxMapa.push(i);
+
+    const cor    = l.tipo === "geografica" ? "#d35400" : "#1a5276";
+    const rotulo = _rotulo(l, i);
+
+    const icone = L.divIcon({
+      className: "",
+      html: '<div style="background:'+cor+';color:#fff;border-radius:50%;'
+          + 'width:24px;height:24px;display:flex;align-items:center;justify-content:center;'
+          + 'font-size:10px;font-weight:bold;font-family:monospace;'
+          + 'border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);cursor:grab">'
+          + rotulo + "</div>",
+      iconSize:[24,24], iconAnchor:[12,12],
+    });
+
+    const popup = "<b>" + rotulo + "</b><br>"
+      + (l.tipo==="geografica"
+          ? "Lat: "+parseFloat(l.lat).toFixed(6)+"<br>Lon: "+parseFloat(l.lon).toFixed(6)+"<br>"
+          : "")
+      + "E: " + e.toLocaleString("pt-BR",{maximumFractionDigits:3}) + "<br>"
+      + "N: " + n.toLocaleString("pt-BR",{maximumFractionDigits:3})
+      + "<br><small style='color:#888'>Arraste para mover</small>";
+
+    // Marcador arrastavel
+    const mk = L.marker(ll, {
+      icon:      icone,
+      draggable: true,
+      autoPan:   true,
+    }).bindPopup(popup).addTo(mapa);
+
+    // Ao soltar o marcador: converte lat/lon de volta para UTM e atualiza tabela
+    // usa closure do 'i' e 'idx_linha' para evitar problema com indexOf
+    const idx_linha = i;
+    mk.on("dragend", function(ev) {
+      const pos  = ev.target.getLatLng();
+      const idx  = idx_linha;
+      try {
+        const utm = latLonParaUtm(pos.lat, pos.lng, parseInt(fuso), hem);
+        linhas[idx].coord_e = utm.e.toFixed(4);
+        linhas[idx].coord_n = utm.n.toFixed(4);
+        // Atualiza inputs na tabela
+        const tr = document.querySelector("#tbody tr[data-idx='"+idx+"']");
+        if (tr) {
+          tr.querySelectorAll("input[data-campo]").forEach(inp => {
+            inp.value = linhas[idx][inp.dataset.campo] || "";
+          });
+        }
+        atualizarMapa();
+      } catch(err) {
+        console.warn("Erro ao converter coordenadas:", err);
+      }
+    });
+
+    camadasMapa.push(mk);
+  });
+
+  if (pontos.length < 2) {
+    document.getElementById("mapa-info").textContent =
+      pontos.length === 0 ? "Nenhuma coordenada válida. Verifique o fuso selecionado."
+                          : "1 ponto plotado.";
+    return;
+  }
+
+  const fill = L.polygon(pontos, {color:"#1a5276",weight:2,fillColor:"#2e86c1",fillOpacity:.13}).addTo(mapa);
+  const linha = L.polyline([...pontos,pontos[0]], {color:"#1a5276",weight:2,dashArray:"6 5"}).addTo(mapa);
+  camadasMapa.push(fill, linha);
+  mapa.fitBounds(L.latLngBounds(pontos), {padding:[40,40]});
+  document.getElementById("mapa-info").textContent =
+    pontos.length + " vértices · arraste um marcador para ajustar a posição.";
+}
+
+/* ── numeracao automatica ───────────────────────────────── */
+function normalizarRotulos() {
+  // Se a maioria dos rotulos estiver vazia ou forem so numeros sequenciais,
+  // renumera tudo de forma consistente mantendo rotulos personalizados
+  if (!linhas.length) return;
+
+  const temRotuloCustom = linhas.some((l, i) => {
+    const v = String(l.vertice || "").trim();
+    return v && v !== String(i+1) && v !== "" ;
+  });
+
+  if (!temRotuloCustom) {
+    // Renumera sequencialmente
+    linhas.forEach((l, i) => { l.vertice = String(i + 1); });
+    // Atualiza inputs na tabela
+    document.querySelectorAll("#tbody tr").forEach((tr, i) => {
+      const inp = tr.querySelector("input[data-campo='vertice']");
+      if (inp && linhas[i]) inp.value = linhas[i].vertice;
+    });
+  }
+}
+
+/* ── conversao lat/lon -> UTM (para dragend) ────────────── */
+function latLonParaUtm(lat, lon, fuso, hem) {
+  // Usa proj4 se disponivel
+  if (typeof proj4 !== "undefined") {
+    const epsg = hem === "S"
+      ? "+proj=utm +zone="+fuso+" +south +datum=WGS84 +units=m +no_defs"
+      : "+proj=utm +zone="+fuso+" +datum=WGS84 +units=m +no_defs";
+    const coords = proj4("EPSG:4326", epsg, [lon, lat]);
+    return { e: coords[0], n: coords[1] };
+  }
+  throw new Error("proj4 nao disponivel");
+}
+
+/* ── abas ───────────────────────────────────────────── */
+function trocarAba(aba) {
+  abaAtiva = aba;
+  document.querySelectorAll(".aba").forEach((b,i) =>
+    b.classList.toggle("ativa",(i===0&&aba==="arquivo")||(i===1&&aba==="texto"))
+  );
+  document.getElementById("painel-arquivo").classList.toggle("ativo", aba==="arquivo");
+  document.getElementById("painel-texto").classList.toggle("ativo",   aba==="texto");
+}
+
+/* ── arquivo ────────────────────────────────────────── */
+const dz = document.getElementById("drop");
+dz.addEventListener("dragover",  e => { e.preventDefault(); dz.classList.add("sobre"); });
+dz.addEventListener("dragleave", () => dz.classList.remove("sobre"));
+dz.addEventListener("drop", e => { e.preventDefault(); dz.classList.remove("sobre"); if(e.dataTransfer.files[0]) definirArquivo(e.dataTransfer.files[0]); });
+function aoEscolherArquivo(inp) { if(inp.files[0]) definirArquivo(inp.files[0]); }
+function definirArquivo(f) {
+  arquivoAtual = f;
+  const ok = document.getElementById("arquivo-ok");
+  ok.textContent = "✔ " + f.name + " (" + (f.size/1024).toFixed(0) + " KB)";
+  ok.classList.add("vis");
+}
+
+/* ── processar ──────────────────────────────────────── */
+async function processar() {
+  esconderAlertas();
+  document.getElementById("al-gemini-aviso").style.display = "none";
+  progresso(true, "Extraindo texto e localizando vértices…");
+  document.getElementById("btn-processar").disabled = true;
+
+  try {
+    let res;
+    if (abaAtiva === "arquivo") {
+      if (!arquivoAtual) { alerta("al-erro","Selecione um arquivo primeiro."); return; }
+      const fd = new FormData(); fd.append("arquivo", arquivoAtual);
+      res = await fetch("/api/processar", {method:"POST", body:fd});
+    } else {
+      const texto = document.getElementById("texto-colado").value.trim();
+      if (!texto) { alerta("al-erro","Cole o texto do memorial primeiro."); return; }
+      res = await fetch("/api/processar", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({texto})
+      });
+    }
+
+    const data = await res.json();
+
+    // PDF escaneado sem OCR configurado
+    if (res.status === 422 && data.erro === "pdf_escaneado") {
+      alerta("al-aviso",
+        "⚠ Este PDF é escaneado (imagem). Configure a chave do Google Vision "
+        + "em ⚙ Configurar APIs para habilitar o OCR.");
+      return;
+    }
+
+    // Cota OCR excedida
+    if (res.status === 429 && data.erro === "cota_excedida") {
+      alerta("al-erro", "⛔ " + (data.mensagem || "Limite de OCR atingido este mês."));
+      return;
+    }
+
+    if (!res.ok) { alerta("al-erro", data.erro || "Erro desconhecido."); return; }
+
+    textoAtual = data.texto || "";
+
+    if (data.ocr_usado) {
+      const avEl = document.getElementById("al-aviso");
+      avEl.innerHTML = "☁ Texto extraído via Google Vision OCR. "
+        + '<button class="btn btn-cinza" onclick="mostrarOCR()" '
+        + 'style="font-size:.75rem;padding:4px 12px;margin-left:8px">'
+        + '🔍 Ver texto extraído</button>';
+      avEl.classList.add("vis");
+    }
+
+    if (!data.vertices || data.vertices.length === 0) {
+      if (data.gemini_disponivel) {
+        document.getElementById("al-gemini-aviso").style.display = "block";
+      } else {
+        alerta("al-erro",
+          "Nenhum vértice encontrado. Configure o Gemini em ⚙ Configurar APIs "
+          + "para tentar extração inteligente, ou adicione as linhas manualmente.");
+      }
+      return;
+    }
+
+    const nGeo = data.vertices.filter(v => v.tipo === "geografica").length;
+    const nUtm = data.vertices.filter(v => v.tipo === "utm").length;
+    let msg = "✔ " + data.total + " vértice" + (data.total!==1?"s":"") + " extraído" + (data.total!==1?"s":"") + ".";
+    if (nGeo > 0) msg += " (" + nGeo + " geográfico" + (nGeo!==1?"s":"") + " → convertido" + (nGeo!==1?"s":"") + " para UTM)";
+    if (data.sentido)   msg += " · Sentido " + data.sentido + ".";
+    if (data.validacao) msg += (data.validacao === "OK" ? " · Polígono fecha ✔" : " · ⚠ " + data.validacao);
+    alerta("al-ok", msg);
+
+    renderizarMeta(data.meta);
+    renderizarTabela(data.vertices);
+    document.getElementById("btn-exportar").disabled = false;
+
+    if (data.meta && data.meta.fuso) {
+      const f = parseInt(data.meta.fuso);
+      if (f >= 18 && f <= 26) document.getElementById("sel-fuso").value = String(f);
+    }
+    // para coords geograficas detecta fuso pelo primeiro vertice
+    if (nGeo > 0 && data.vertices[0].fuso_utm) {
+      document.getElementById("sel-fuso").value = String(data.vertices[0].fuso_utm);
+    }
+
+    setTimeout(atualizarMapa, 150);
+
+  } catch(e) {
+    alerta("al-erro","Erro: " + e.message);
+  } finally {
+    progresso(false);
+    document.getElementById("btn-processar").disabled = false;
+  }
+}
+
+/* ── gemini ─────────────────────────────────────────── */
+async function usarGemini() {
+  if (!textoAtual) { alerta("al-erro","Nenhum texto disponível."); return; }
+  document.getElementById("al-gemini-aviso").style.display = "none";
+  progresso(true, "Enviando para Gemini (IA)…");
+
+  try {
+    const res  = await fetch("/api/gemini", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({texto: textoAtual})
+    });
+
+    // verifica se a resposta e JSON valido antes de parsear
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      alerta("al-erro", "Erro interno do servidor. Verifique se o app está rodando corretamente.");
+      return;
+    }
+
+    const data = await res.json();
+    if (!res.ok) { alerta("al-erro", data.erro || "Erro no Gemini."); return; }
+
+    if (!data.vertices || data.vertices.length === 0) {
+      alerta("al-erro","O Gemini também não encontrou vértices. Adicione manualmente na tabela.");
+      return;
+    }
+
+    alerta("al-ok", "✔ Gemini extraiu " + data.total + " vértice" + (data.total!==1?"s":"") + ".");
+    renderizarTabela(data.vertices);
+    document.getElementById("btn-exportar").disabled = false;
+    setTimeout(atualizarMapa, 150);
+
+  } catch(e) {
+    alerta("al-erro","Erro: " + e.message);
+  } finally {
+    progresso(false);
+  }
+}
+
+/* ── tabela ─────────────────────────────────────────── */
+function renderizarTabela(dados) {
+  linhas = dados.map(d => ({...d}));
+  document.getElementById("tbody").innerHTML = "";
+  linhas.forEach((_,i) => addLinhaDOM(i));
+  atualizarCount();
+}
+
+function addLinhaDOM(i) {
+  const l = linhas[i] || {vertice:"",coord_e:"",coord_n:"",tipo:"utm"};
+  const tbody = document.getElementById("tbody");
+  const tr = document.createElement("tr");
+  tr.dataset.idx = i;
+
+  ["vertice","coord_e","coord_n"].forEach(campo => {
+    const td = document.createElement("td");
+    const inp = document.createElement("input");
+    inp.type="text"; inp.value=l[campo]||""; inp.dataset.campo=campo;
+    inp.addEventListener("change", () => { linhas[i]=linhas[i]||{}; linhas[i][campo]=inp.value; atualizarMapa(); });
+    td.appendChild(inp); tr.appendChild(td);
+  });
+
+  // coluna tipo
+  const tdTipo = document.createElement("td");
+  tdTipo.className = "col-tipo";
+  tdTipo.innerHTML = l.tipo === "geografica"
+    ? '<span class="tag-geo">GEO</span>'
+    : '<span class="tag-utm">UTM</span>';
+  tr.appendChild(tdTipo);
+
+  const tdDel = document.createElement("td"); tdDel.className="col-del";
+  const btn = document.createElement("button"); btn.className="del"; btn.textContent="×";
+  btn.onclick = () => { linhas.splice(i,1); tr.remove(); atualizarCount(); atualizarMapa(); document.querySelectorAll("#tbody tr").forEach((r,ni)=>r.dataset.idx=ni); };
+  tdDel.appendChild(btn); tr.appendChild(tdDel); tbody.appendChild(tr);
+}
+
+function addLinha() {
+  const i = linhas.length; linhas.push({vertice:"",coord_e:"",coord_n:"",tipo:"utm"});
+  addLinhaDOM(i); atualizarCount(); document.getElementById("btn-exportar").disabled=false;
+}
+
+function atualizarCount() {
+  document.getElementById("count").textContent = document.getElementById("tbody").rows.length;
+}
+
+function sincronizarLinhas() {
+  document.querySelectorAll("#tbody tr").forEach((tr,i) => {
+    linhas[i]=linhas[i]||{};
+    tr.querySelectorAll("input[data-campo]").forEach(inp => linhas[i][inp.dataset.campo]=inp.value);
+  });
+}
+
+/* ── meta ───────────────────────────────────────────── */
+function renderizarMeta(meta) {
+  const div=document.getElementById("meta"); div.innerHTML="";
+  const labels={area:"Área",perimetro:"Perímetro",datum:"Datum",municipio:"Município",fuso:"Fuso",meridiano:"Meridiano"};
+  const fmt={
+    area:      v => Number(v).toLocaleString("pt-BR",{maximumFractionDigits:2})+" m²",
+    perimetro: v => Number(v).toLocaleString("pt-BR",{maximumFractionDigits:2})+" m",
+  };
+  let any=false;
+  for(const [k,lbl] of Object.entries(labels)){
+    if(meta[k]!==undefined){
+      const d=document.createElement("div"); d.className="meta-item";
+      d.innerHTML="<b>"+lbl+":</b> "+(fmt[k]?fmt[k](meta[k]):meta[k]);
+      div.appendChild(d); any=true;
+    }
+  }
+  div.classList.toggle("vis",any);
+}
+
+/* ── exportar ───────────────────────────────────────── */
+async function exportar() {
+  sincronizarLinhas();
+  if(!linhas.length){ alerta("al-exportar","Tabela vazia."); return; }
+  const res=await fetch("/api/exportar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vertices:linhas})});
+  if(!res.ok){alert("Erro ao exportar."); return;}
+  const blob=await res.blob();
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="vertices_memorial.csv"; a.click();
+  URL.revokeObjectURL(a.href);
+  alerta("al-exportar","✔ CSV baixado com "+linhas.length+" vértice"+(linhas.length!==1?"s":"")+".");
+}
+
+/* ── encerrar ───────────────────────────────────────── */
+async function encerrar() {
+  if(!confirm("Encerrar o Memorial Converter?")) return;
+  try{await fetch("/api/encerrar",{method:"POST"});}catch(_){}
+  window.close();
+}
+
+/* ── helpers ────────────────────────────────────────── */
+function mostrarOCR() {
+  document.getElementById("ocr-texto").value = textoAtual || "(texto vazio)";
+  document.getElementById("ocr-debug").style.display = "block";
+  document.getElementById("ocr-debug").scrollIntoView({behavior:"smooth"});
+}
+
+function copiarTextoOCR() {
+  const ta = document.getElementById("ocr-texto");
+  ta.select();
+  document.execCommand("copy");
+  alert("Texto copiado! Cole na aba \"Colar texto\" para tentar novamente.");
+}
+
+function progresso(on,txt){document.getElementById("prog").classList.toggle("vis",on);document.getElementById("prog-texto").textContent=txt||"";}
+function alerta(id,msg){const el=document.getElementById(id);el.textContent=msg;el.classList.add("vis");}
+function esconderAlertas(){["al-erro","al-aviso","al-ok"].forEach(id=>document.getElementById(id).classList.remove("vis"));}
+</script>
+</body>
+</html>
