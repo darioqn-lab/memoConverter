@@ -346,4 +346,3 @@ if __name__ == "__main__":
     threading.Timer(1.2, webbrowser.open, args=["http://localhost:{}".format(port)]).start()
     print("\n  Memorial Converter v2 — http://localhost:{}\n".format(port))
     app.run(port=port, debug=False)
-
