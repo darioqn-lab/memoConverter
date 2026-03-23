@@ -1,6 +1,6 @@
 {
-  "version": "1.7.0",
-  "changelog": "Correção no parsing de coordenadas DMS.",
+  "version": "1.1.0",
+  "changelog": "Teste de atualização automática.",
   "files": [
     "app/app.py",
     "app/memorial_parser.py",
