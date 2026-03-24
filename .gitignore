@@ -1,0 +1,5 @@
+app/config.ini
+app/keys.enc
+app/licenca.key
+*.pyc
+__pycache__/
