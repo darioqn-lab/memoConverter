@@ -887,7 +887,7 @@ async function exportar() {
   if(!res.ok){alert("Erro ao exportar."); return;}
   const blob=await res.blob();
   const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob); a.download="vertices_memorial.csv"; a.click();
+  const disp=res.headers.get("Content-Disposition"); const fn=disp&&disp.match(/filename[^=\n]*=([^;\n]*)/i)?disp.match(/filename[^=\n]*=([^;\n]*)/i)[1].replace(/['"]/g,"").trim():"vertices_memorial.csv"; a.href=URL.createObjectURL(blob); a.download=fn; a.click();
   URL.revokeObjectURL(a.href);
   alerta("al-exportar","✔ CSV baixado com "+linhas.length+" vértice"+(linhas.length!==1?"s":"")+".");
 }
