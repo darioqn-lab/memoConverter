@@ -229,8 +229,8 @@ footer{text-align:center;padding:16px;font-family:var(--mono);font-size:.7rem;co
       <div class="drop" id="drop" onclick="document.getElementById('fi').click()">
         <div class="drop-ico">📄</div>
         <div><strong>Clique para selecionar</strong> ou arraste aqui</div>
-        <div class="drop-hint">PDF · Word .docx · Imagem JPG / PNG (requer Google Vision)</div>
-        <input type="file" id="fi" accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.tif,.tiff" onchange="aoEscolherArquivo(this)">
+        <div class="drop-hint">PDF · Word .docx · Texto .txt · Excel .xls · Imagem JPG / PNG (requer Google Vision)</div>
+        <input type="file" id="fi" accept=".pdf,.docx,.doc,.txt,.xls,.xlsx,.jpg,.jpeg,.png,.tif,.tiff" onchange="aoEscolherArquivo(this)">
       </div>
       <div class="arquivo-ok" id="arquivo-ok"></div>
     </div>
@@ -887,7 +887,7 @@ async function exportar() {
   if(!res.ok){alert("Erro ao exportar."); return;}
   const blob=await res.blob();
   const a=document.createElement("a");
-  const disp=res.headers.get("Content-Disposition"); const fn=disp&&disp.match(/filename[^=\n]*=([^;\n]*)/i)?disp.match(/filename[^=\n]*=([^;\n]*)/i)[1].replace(/['"]/g,"").trim():"vertices_memorial.csv"; a.href=URL.createObjectURL(blob); a.download=fn; a.click();
+  a.href=URL.createObjectURL(blob); a.download="vertices_memorial.csv"; a.click();
   URL.revokeObjectURL(a.href);
   alerta("al-exportar","✔ CSV baixado com "+linhas.length+" vértice"+(linhas.length!==1?"s":"")+".");
 }
