@@ -885,9 +885,11 @@ async function exportar() {
   if(!linhas.length){ alerta("al-exportar","Tabela vazia."); return; }
   const res=await fetch("/api/exportar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vertices:linhas})});
   if(!res.ok){alert("Erro ao exportar."); return;}
+  const disp=res.headers.get("Content-Disposition");
+  const fn=disp&&disp.match(/filename=([^;\n]+)/i)?disp.match(/filename=([^;\n]+)/i)[1].replace(/['"]/g,"").trim():"vertices_memorial.csv";
   const blob=await res.blob();
   const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob); a.download="vertices_memorial.csv"; a.click();
+  a.href=URL.createObjectURL(blob); a.download=fn; a.click();
   URL.revokeObjectURL(a.href);
   alerta("al-exportar","✔ CSV baixado com "+linhas.length+" vértice"+(linhas.length!==1?"s":"")+".");
 }
