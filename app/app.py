@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-app.py - MemoConverter v1.8.0
+app.py - MemoConverter v2.3.0
 Uso: python app.py  (ou duplo clique em iniciar.bat)
 """
 
