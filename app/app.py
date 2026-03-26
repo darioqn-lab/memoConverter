@@ -22,7 +22,7 @@ from memorial_parser import (
 from quota import status_cota, registrar_uso, verificar_antes_ocr
 from licenca import status_licenca, verificar_chave, salvar_chave
 
-APP_VERSION = "1.8.0"
+APP_VERSION = "2.3.0"
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
