@@ -8,12 +8,12 @@ import os, csv, json, tempfile, configparser, sys, datetime
 from pathlib import Path
 
 # Garante que a pasta do app.py esteja no sys.path
-# Necessario para Python embeddable (portatil)
 _APP_DIR = Path(__file__).parent.resolve()
 if str(_APP_DIR) not in sys.path:
     sys.path.insert(0, str(_APP_DIR))
-from pathlib import Path
+
 from flask import Flask, request, jsonify, render_template, send_file, after_this_request
+
 from memorial_parser import (
     ler_pdf, ler_docx, extrair_vertices, extrair_meta,
     ocr_google_vision, ocr_google_vision_imagem, extrair_com_gemini,
@@ -33,10 +33,6 @@ _keys_cache = None
 
 
 def _carregar_keys_enc():
-    """
-    Tenta ler chaves do keys.enc (criptografado).
-    Retorna dict ou {} se nao existir.
-    """
     global _keys_cache
     if _keys_cache is not None:
         return _keys_cache
@@ -58,10 +54,6 @@ def _carregar_keys_enc():
 
 
 def _get_api_key(nome):
-    """
-    Retorna chave de API.
-    Prioridade: keys.enc (criptografado) > config.ini (texto claro)
-    """
     keys = _carregar_keys_enc()
     if keys.get(nome, "").strip():
         return keys[nome].strip()
@@ -78,7 +70,6 @@ def carregar_config():
 
 
 def contar_paginas_pdf(path):
-    """Conta paginas do PDF sem extrair texto."""
     try:
         import pdfplumber
         with pdfplumber.open(path) as pdf:
@@ -93,7 +84,7 @@ def contar_paginas_pdf(path):
         return n
     except Exception:
         pass
-    return 1   # fallback conservador
+    return 1
 
 
 # ── rotas ────────────────────────────────────────────────────
@@ -128,7 +119,6 @@ def processar():
                             "mensagem":   "Este PDF é escaneado. Configure a chave do Google Vision em ⚙ Configurar APIs."
                         }), 422
 
-                    # verifica cota antes de chamar a API
                     n_pag = contar_paginas_pdf(tmp.name)
                     pode, msg_cota = verificar_antes_ocr(n_pag)
                     if not pode:
@@ -149,7 +139,6 @@ def processar():
                     return jsonify({"erro": err}), 500
 
             elif ext == ".doc":
-                # .doc legado — tenta converter via antiword ou fallback para docx
                 try:
                     import subprocess
                     result = subprocess.run(
@@ -159,7 +148,6 @@ def processar():
                     if not texto.strip():
                         raise Exception("antiword vazio")
                 except Exception:
-                    # Fallback: tenta abrir como docx mesmo assim
                     texto, err = ler_docx(tmp.name)
                     if err and not texto:
                         return jsonify({"erro": "Formato .doc legado nao suportado. Converta para .docx e tente novamente."}), 400
@@ -232,7 +220,6 @@ def processar():
 
 @app.route("/api/gemini", methods=["POST"])
 def usar_gemini():
-    cfg     = carregar_config()
     api_key  = _get_api_key("gemini")
 
     if not api_key:
@@ -261,29 +248,45 @@ def exportar():
     if not vertices:
         return jsonify({"erro": "Nenhum vertice para exportar."}), 400
 
+    # Nome do arquivo com timestamp
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"vertices_memorial_{ts}.csv"
+
     tmp = tempfile.NamedTemporaryFile(
         mode="w", suffix=".csv", delete=False,
         encoding="utf-8-sig", newline=""
     )
+
     writer = csv.writer(tmp, delimiter=";")
     writer.writerow(["Ponto", "X", "Y"])
     for v in vertices:
-        # garante decimal com ponto (formato ArcGeek Topo)
         def fmt(val):
-            try: return "{:.3f}".format(float(str(val).replace(",",".")))
-            except: return str(val)
-        writer.writerow([v.get("vertice",""), fmt(v.get("coord_e","")), fmt(v.get("coord_n",""))])
+            try: 
+                return "{:.3f}".format(float(str(val).replace(",",".")))
+            except: 
+                return str(val)
+        writer.writerow([
+            v.get("vertice", ""), 
+            fmt(v.get("coord_e", "")), 
+            fmt(v.get("coord_n", ""))
+        ])
+    
     tmp.close()
 
     @after_this_request
     def cleanup(response):
-        try: os.unlink(tmp.name)
-        except: pass
+        try: 
+            os.unlink(tmp.name)
+        except: 
+            pass
         return response
 
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return send_file(tmp.name, mimetype="text/csv", as_attachment=True,
-                     download_name="vertices_memorial_{}.csv".format(ts))
+    return send_file(
+        tmp.name, 
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 @app.route("/api/versao", methods=["GET"])
